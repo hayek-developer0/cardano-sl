@@ -14,9 +14,6 @@ module Functions
 import           Universum hiding (log, uncons, init)
 
 import           Control.Lens (at, each, filtered, uses, (%=), (+=), (.=), (<>=), (?=))
-import           Data.Aeson (toJSON)
-import           Data.Aeson.Diff (diff)
-import           Data.Aeson.Encode.Pretty (encodePretty)
 import           Data.Coerce (coerce)
 import           Data.List (isInfixOf, nub, uncons, (!!), (\\))
 import           Servant.Client (GenResponse (..))
@@ -35,7 +32,7 @@ import           Cardano.Wallet.Client (ClientError (..), ServantError (..),
 import           Pos.Core (getCoin, mkCoin, unsafeAddCoin, unsafeSubCoin)
 import qualified Pos.Wallet.Web.ClientTypes.Types as V0
 
-import           Error
+import           Error (WalletTestError(..), showConstr)
 import           Types
 
 newtype RefT s m a
@@ -127,8 +124,6 @@ runAction
     -> m ()
 -- Wallets
 runAction wc action = do
-
-    previousWalletState <- get
 
     log $ "Action Selected: " <> show action
     actionsNum += 1
@@ -621,20 +616,6 @@ runAction wc action = do
                 (LocalTransactionMissing transaction result)
 
         NoOp  -> pure ()
-
-    lastAction .= action
-
-    -- Let's print it out to JSON
-    walletState <- get
-
-    log "=================================================================="
-    log . decodeUtf8 . encodePretty $ diff (toJSON previousWalletState) (toJSON walletState)
-    log "=================================================================="
-
-    -- increment successful actions
-    log "Success!"
-    successActions <>= [action]
-
 
 -----------------------------------------------------------------------------
 -- Helpers
