@@ -19,7 +19,7 @@ import           Data.Aeson.Diff (diff)
 import           Data.Aeson.Encode.Pretty (encodePretty)
 import           Data.Coerce (coerce)
 import           Data.List (isInfixOf, nub, uncons, (!!), (\\))
-import           Data.List (isInfixOf, nub, (!!), (\\))
+import           Servant.Client (GenResponse (..))
 import           Test.Hspec (describe, expectationFailure, hspec, it, shouldBe, shouldContain)
 import           Test.QuickCheck (arbitrary, choose, elements, frequency, generate, suchThat)
 import           Text.Show.Pretty (ppShow)
@@ -37,6 +37,7 @@ import qualified Pos.Wallet.Web.ClientTypes.Types as V0
 
 import           Error (WalletTestError (..), showConstr)
 import           Types
+import           Util
 
 newtype RefT s m a
     = RefT
@@ -448,7 +449,7 @@ runAction wc action = do
             -- Some min amount of money so we can send a transaction?
             -- https://github.com/input-output-hk/cardano-sl/blob/develop/lib/configuration.yaml#L228
             let minCoinForTxs = V1 . mkCoin $ 200000
-            let localAccsNotLocked = filter ((/= WalletId "Ae2tdPwUPEZ5YjF9WuDoWfCZLPQ56MdQC6CZa2VKwMVRVqBBfTLPNcPvET4") . accWalletId) localAccounts
+            let localAccsNotLocked = filter ((/= lockedWallet) . accWalletId) localAccounts
             let localAccsWithMoney = filter ((> minCoinForTxs) . accAmount) localAccsNotLocked
 
             -- From which source to pay.
