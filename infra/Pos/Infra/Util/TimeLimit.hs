@@ -45,7 +45,7 @@ logWarningLongAction
     :: forall m a.
        CanLogInParallel m
     => Bool -> WaitingDelta -> Text -> m a -> m a
-logWarningLongAction {- secure -} _ delta actionTag action =
+logWarningLongAction secure delta actionTag action =
     -- Previous implementation was
     --
     --   bracket (fork $ waitAndWarn delta) killThread (const action)
@@ -64,7 +64,7 @@ logWarningLongAction {- secure -} _ delta actionTag action =
   where
     logFunc :: Text -> m ()
     logFunc = bool logWarning logWarningS secure
-    printWarning t = logWarning $ sformat ("Action `"%stext%"` took more than "%shown)
+    printWarning t = logFunc $ sformat ("Action `"%stext%"` took more than "%shown)
                                        actionTag t
 
     -- [LW-4]: avoid code duplication somehow (during refactoring)
