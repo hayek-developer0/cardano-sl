@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds                 #-}
--- {-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GADTs                     #-}
 {-# LANGUAGE KindSignatures            #-}
@@ -31,6 +30,7 @@ module Pos.Util.Log.LogSafe
        , logNoticeSP
        , logWarningSP
        , logErrorSP
+       , logItemS
 
          -- * Secure 'Buildable's
        , SecureLog (..)
@@ -55,25 +55,24 @@ module Pos.Util.Log.LogSafe
        , buildUnsecure
        , getSecuredText
        , deriveSafeBuildable
+
+       -- ** Auxiliary functions
+       , logMCond
        ) where
 
--- import           GHC.Generics
 import           Universum
 
 import           Control.Monad.Trans (MonadTrans)
--- import           Data.List (isSuffixOf)
 import           Data.Reflection (Reifies (..), reify)
--- import           Data.Reflection (reify)
 import qualified Data.Text.Buildable
 import           Data.Text.Lazy.Builder (Builder)
 import           Formatting (bprint, build, fconst, later, mapf, (%))
 import           Formatting.Internal (Format (..))
 import qualified Language.Haskell.TH as TH
 import           Pos.Util.Log (CanLog (..), HasLoggerName (..), LogContext, LogSafety (..),
-                               Severity (..), WithLogger, logMessage)
+                               Severity (..), WithLogger)
+import           Pos.Util.Log.Internal (getLogEnv)
 
-
--- import           Pos.Binary.Core ()
 import qualified Katip as K
 
 ----------------------------------------------------------------------------
@@ -98,19 +97,58 @@ instance MonadTrans (SelectiveLogWrapped s) where
 
 -- | Whether to log to given log handler.
 type SelectionMode = LogSafety -> Bool
+-- type SelectionMode' = Text -> Bool
 
 selectPublicLogs :: SelectionMode
--- selectPublicLogs = const False
 selectPublicLogs = \case
-    Public -> True
+    PublicLog -> True
     _ -> False
 
 selectSecretLogs :: SelectionMode
 selectSecretLogs = not . selectPublicLogs
 
--- TODO
-logMCond :: (LogContext m) => Severity -> Text -> (SelectionMode) -> m ()
-logMCond sev msg cond = when (cond Public) $ logMessage sev msg
+logMCond :: (LogContext m) => Severity -> Text -> SelectionMode -> m ()
+logMCond _ _ _ = return ()--FiXME to use logItemS
+-- logMCond sev msg cond = --FiXME to use logItemS
+                        -- when (cond Public) $ logMessage sev msg
+-- liket this
+-- -- | log a Text with severity
+-- logMessage :: (LogContext m {-, HasCallStack -}) => Severity -> Text -> m ()
+-- logMessage sev msg = logMessage' (Internal.sev2klog sev) $ K.logStr msg
+-- logMessage' :: (LogContext m {-, HasCallStack -}) => K.Severity -> K.LogStr -> m ()
+-- logMessage' s m = K.logItemM Nothing s m
+
+
+logItemS
+    -- :: (Applicative m, K.LogItem a, K.Katip m)
+    :: K.Katip m
+    => a
+    -> K.Namespace
+    -> Maybe TH.Loc
+    -> Severity
+    -> SelectionMode
+    -> K.LogStr
+    -> m ()
+-- logItemS a ns loc sev cond msg = do
+logItemS _ _ _ _ _ _ = do
+    aa <- liftIO getLogEnv
+    case aa of
+        Nothing -> error "  "
+        _       -> return ()
+    -- liftIO $ do
+    --   item <- Item
+    --     <$> pure _logEnvApp
+    --     <*> pure _logEnvEnv
+    --     <*> pure sev
+    --     <*> (mkThreadIdText <$> myThreadId)
+    --     <*> pure _logEnvHost
+    --     <*> pure _logEnvPid
+    --     <*> pure a
+    --     <*> pure msg
+    --     <*> _logEnvTimer
+    --     <*> pure (_logEnvApp <> ns)
+    --     <*> pure loc
+    --   forM_ (filter cond (elems _logEnvScribes)) $ \ ScribeHandle {..} -> atomically (tryWriteTBQueue shChan (NewItem item))
 
 instance (WithLogger m, Reifies s SelectionMode) =>
          CanLog (SelectiveLogWrapped s m) where

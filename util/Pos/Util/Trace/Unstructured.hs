@@ -45,20 +45,12 @@ module Pos.Util.Trace.Unstructured
 
     ) where
 
-import           Universum
 import qualified Control.Exception as E
+import           Universum
 
-import           Pos.Util.Log   (Severity (..))
+import           Pos.Util.Log (Severity (..))
 import           Pos.Util.Trace (Trace (..), traceWith)
 
-{-}
-data Severity where
-    Debug   :: Severity
-    Info    :: Severity
-    Notice  :: Severity
-    Warning :: Severity
-    Error   :: Severity
--}
 
 data LogPrivacy where
     -- | Only to public logs.
@@ -70,9 +62,9 @@ data LogPrivacy where
 
 -- | An unstructured log item.
 data LogItem = LogItem
-    { liPrivacy    :: LogPrivacy
-    , liSeverity   :: Severity
-    , liMessage    :: Text
+    { liPrivacy  :: LogPrivacy
+    , liSeverity :: Severity
+    , liMessage  :: Text
     }
 
 publicLogItem :: (Severity, Text) -> LogItem

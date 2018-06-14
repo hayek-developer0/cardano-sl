@@ -14,7 +14,6 @@ module Pos.Util.LoggerConfig
        , lcLoggerTree
        , lcRotation
        , lcBasePath
-       , lcLogSafety
        , ltHandlers
        , ltMinSeverity
        , rpKeepFiles
@@ -23,6 +22,7 @@ module Pos.Util.LoggerConfig
        , lhName
        , lhFpath
        , lhMinSeverity
+       , lhSafety
        -- * functions
        , parseLoggerConfig
        , retrieveLogFiles
@@ -66,6 +66,14 @@ instance FromJSON RotationParameters where
 
 makeLenses ''RotationParameters
 
+data LogSafety where
+    PublicLog  :: LogSafety
+    PrivateLog :: LogSafety
+        deriving (Generic,Show)
+
+deriving instance ToJSON LogSafety
+deriving instance FromJSON LogSafety
+
 -- | @'LogHandler'@ describes the output handler (file, stdout, ..)
 --
 data LogHandler = LogHandler
@@ -73,7 +81,9 @@ data LogHandler = LogHandler
       -- ^ name of the handler
     , _lhFpath       :: !(Maybe FilePath)
       -- ^ file path
-    , _lhBackend     :: !BackendKind   -- T.Text
+    , _lhSafety      :: !(Maybe LogSafety)
+      -- ^ file will be public or private
+    , _lhBackend     :: !BackendKind
       -- ^ describes the backend (scribe for katip) to be loaded
     , _lhMinSeverity :: !(Maybe Severity)
       -- ^ the minimum severity to be logged
@@ -84,7 +94,8 @@ instance FromJSON LogHandler where
     parseJSON = withObject "log handler" $ \o -> do
         (_lhName :: T.Text) <- o .: "name"
         (_lhFpath :: Maybe FilePath) <- fmap normalise <$> o .:? "filepath"
-        (_lhBackend :: BackendKind {-T.Text-}) <- o .: "backend"
+        (_lhSafety :: Maybe LogSafety) <- o .:? "logsafety"
+        (_lhBackend :: BackendKind ) <- o .: "backend"
         (_lhMinSeverity :: Maybe Severity) <- o .:? "severity"
         pure LogHandler{..}
 
@@ -105,7 +116,10 @@ instance FromJSON LoggerTree where
         handlers <- o .:? "handlers" .!= []
         let fileHandlers =
               map (\fp -> LogHandler { _lhName=T.pack fp, _lhFpath=Just fp
-                                     , _lhBackend=FileTextBE, _lhMinSeverity=Just Debug }) $
+                                     , _lhBackend=FileTextBE, _lhMinSeverity=Just Debug
+                                     --FIXME to have a condition that chooses if a file is
+                                     -- public or private
+                                     , _lhSafety=Just PublicLog }) $
                 maybeToList singleFile ++ manyFiles
         let _ltHandlers = fileHandlers <> handlers
         (_ltMinSeverity :: Severity) <- o .: "severity" .!= Debug
@@ -115,30 +129,20 @@ instance Semigroup LoggerTree
 instance Monoid LoggerTree where
     mempty = LoggerTree { _ltMinSeverity = Debug
                    , _ltHandlers = [LogHandler { _lhName="node", _lhFpath=Just "node.log"
-                                               , _lhBackend=FileTextBE, _lhMinSeverity=Just Debug}]
+                                               , _lhBackend=FileTextBE, _lhMinSeverity=Just Debug
+                                               , _lhSafety=Just PublicLog}]
                    }
         -- ^ default value
     mappend = (<>)
 
 makeLenses ''LoggerTree
 
-data LogSafety where
-    -- | Log only insensitive data.
-    Public  :: LogSafety
-    -- | Log sensitive and insensitive data.
-    Private :: LogSafety
-        deriving (Generic,Show)
-
 -- | @'LoggerConfig'@ is the top level configuration datatype
 data LoggerConfig = LoggerConfig
     { _lcRotation   :: !(Maybe RotationParameters)
     , _lcLoggerTree :: !LoggerTree
     , _lcBasePath   :: !(Maybe FilePath)
-    , _lcLogSafety  :: !(Maybe LogSafety)
     } deriving (Generic, Show)
-
-deriving instance ToJSON LogSafety
-deriving instance FromJSON LogSafety
 
 instance ToJSON LoggerConfig
 instance FromJSON LoggerConfig where
@@ -146,7 +150,6 @@ instance FromJSON LoggerConfig where
         _lcRotation <- o .:? "rotation"
         _lcLoggerTree <- o .: "loggerTree"
         _lcBasePath <- o .:? "logdir"
-        _lcLogSafety <- o .:? "logsafety"
         return LoggerConfig{..}
 
 instance Semigroup LoggerConfig
@@ -156,7 +159,6 @@ instance Monoid LoggerConfig where
                                             _rpKeepFiles = 10 }
                      , _lcLoggerTree = mempty
                      , _lcBasePath = Nothing
-                     , _lcLogSafety = Just Public
                      }
         -- ^ default value
     mappend = (<>)
@@ -196,9 +198,8 @@ defaultTestConfiguration minSeverity =
                 _lhBackend = DevNullBE,
                 _lhName = "devnull",
                 _lhFpath = Nothing,
+                _lhSafety = Just PrivateLog,
                 _lhMinSeverity = Just minSeverity } ]
           }
-        _lcLogSafety = Just Public
     in
     LoggerConfig{..}
-

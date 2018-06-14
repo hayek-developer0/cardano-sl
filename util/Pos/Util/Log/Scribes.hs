@@ -14,12 +14,11 @@ import           Katip.Core
 import           Katip.Format.Time (formatAsIso8601)
 import           Katip.Scribes.Handle (brackets, getKeys)
 import           System.FilePath ((</>))
-import           System.IO (Handle, BufferMode (LineBuffering),
-                            IOMode (WriteMode), hFlush, hSetBuffering,
-                            stdout)
+import           System.IO (BufferMode (LineBuffering), Handle, IOMode (WriteMode), hFlush,
+                            hSetBuffering, stdout)
 import           System.IO.Unsafe (unsafePerformIO)
 
-import qualified Pos.Util.Log.Internal as Internal --(modifyLinesLogged)
+import qualified Pos.Util.Log.Internal as Internal
 
 
 -------------------------------------------------------------------------------
@@ -54,16 +53,6 @@ mkFileScribe' h colorize s v = do
 
 mkStdoutScribe :: Severity -> Verbosity -> IO Scribe
 mkStdoutScribe = mkFileScribe' stdout True
-{- mkStdoutScribe s v = do
-    let h = stdout
-        colorize = True
-    hSetBuffering h LineBuffering
-    let logger :: forall a. LogItem a => Item a -> IO ()
-        logger item = do
-          when (permitItem s item) $ bracket_ (takeMVar lock) (putMVar lock ()) $
-            T.hPutStrLn h $! toLazyText $ formatItem colorize v item
-    pure $ Scribe logger (hFlush h)
--}
 
 -- |Scribe that outputs to /dev/null without locking
 mkDevNullScribe :: Severity -> Verbosity -> IO Scribe

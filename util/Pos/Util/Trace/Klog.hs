@@ -1,12 +1,12 @@
--- | 'Trace' backed by log-warper for unstructured logging.
+-- | 'Trace' backed by katip for unstructured logging.
 
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Pos.Util.Trace.Wlog
+module Pos.Util.Trace.Klog
     ( LogNamed (..)
-    , LoggerName (..)
-    , wlogTrace
+    , LoggerName
+    , klogTrace
     , modifyName
     , appendName
     , setName
@@ -14,15 +14,12 @@ module Pos.Util.Trace.Wlog
     ) where
 
 import           Data.Functor.Contravariant (Op (..), contramap)
-import           Universum
--- Trivia: Universum exports isPrefixOf, but not isSuffixOf.
-import           Data.List (isSuffixOf)
-import           System.Wlog (LoggerName (..), logMCond)
-import qualified System.Wlog as Wlog (Severity (..))
-import           System.Wlog.LogHandler (LogHandlerTag (..))
-
+import           Pos.Util.Log (LogContext, LoggerName)
+import           Pos.Util.Log.LogSafe (logMCond)
+import           Pos.Util.LoggerConfig (LogSafety (..))
 import           Pos.Util.Trace (Trace (..))
-import           Pos.Util.Trace.Unstructured (LogItem (..), LogPrivacy (..), Severity (..))
+import           Pos.Util.Trace.Unstructured (LogItem (..), LogPrivacy (..))
+import           Universum
 
 -- | Attach a 'LoggerName' to something.
 data LogNamed item = LogNamed
@@ -54,33 +51,28 @@ setName name = modifyName (const name)
 named :: Trace m (LogNamed i) -> Trace m i
 named = contramap (LogNamed mempty)
 
-wlogSeverity :: Severity -> Wlog.Severity
-wlogSeverity Debug   = Wlog.Debug
-wlogSeverity Warning = Wlog.Warning
-wlogSeverity Error   = Wlog.Error
-wlogSeverity Info    = Wlog.Info
-wlogSeverity Notice  = Wlog.Notice
-
+-- FIXME needs exporting of 'logMCond' and 'LogHandlerTag' from
+-- Pos.Util.Log or rewriting wlogTrace according to Katip API.
+-- This removal breaks only 'lib/src/Pos/Launcher/Runner.hs'.
 -- | A general log-warper-backed 'Trace', which allows for logging to public,
 -- private, or both, and the choice of a 'LoggerName'.
 -- NB: log-warper uses global shared mutable state. You have to initialize it
 -- or else 'wlogTrace' won't do anything.
-wlogTrace :: Trace IO (LogNamed LogItem)
-wlogTrace = Trace $ Op $ \namedLogItem ->
+klogTrace :: LogContext m => Trace m (LogNamed LogItem)
+klogTrace = Trace $ Op $ \namedLogItem ->
     let privacy = liPrivacy (lnItem namedLogItem)
-        loggerName = lnName namedLogItem
-        severity = wlogSeverity (liSeverity (lnItem namedLogItem))
+        -- loggerName = lnName namedLogItem
+        severity = liSeverity (lnItem namedLogItem)
         message = liMessage (lnItem namedLogItem)
      in case privacy of
-            Private -> logMCond loggerName severity message selectPrivateLogs
-            Public  -> logMCond loggerName severity message selectPublicLogs
-            Both    -> logMCond loggerName severity message selectBoth
+            Private -> logMCond {-loggerName-} severity message selectPrivateLogs
+            Public  -> logMCond {-loggerName-} severity message selectPublicLogs
+            Both    -> logMCond {-loggerName-} severity message selectBoth
   where
-    selectPrivateLogs :: LogHandlerTag -> Bool
+    selectPrivateLogs :: LogSafety -> Bool
     selectPrivateLogs = not . selectPublicLogs
-    selectPublicLogs :: LogHandlerTag -> Bool
-    selectPublicLogs lt = case lt of
-        HandlerFilelike p -> ".pub" `isSuffixOf` p
-        _                 -> False
-    selectBoth :: LogHandlerTag -> Bool
+    selectPublicLogs :: LogSafety -> Bool
+    selectPublicLogs PublicLog  = True
+    selectPublicLogs PrivateLog = False
+    selectBoth :: LogSafety -> Bool
     selectBoth = const True

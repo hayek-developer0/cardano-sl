@@ -2,24 +2,23 @@ module Pos.Util.Log.Internal
        ( setConfig
        , s2kname
        , sev2klog
-       , updateConfig
        , getConfig
        , getLinesLogged
        , getLogEnv
-       , getLogSafety
        , modifyLinesLogged
+       , updateConfig
        ) where
 
 import           Control.Concurrent.MVar (modifyMVar_, newMVar, withMVar)
-import           System.IO.Unsafe (unsafePerformIO)
-
 import qualified Data.Text as T
+-- import           Language.Haskell.TH (Loc)
+import           System.IO.Unsafe (unsafePerformIO)
 import           Universum hiding (newMVar)
 
 import qualified Katip as K
 
 import           Pos.Util.Log.Severity
-import           Pos.Util.LoggerConfig (LogSafety (..), LoggerConfig (..), lcLogSafety)
+import           Pos.Util.LoggerConfig (LoggerConfig (..))
 
 
 -- | translate Severity to Katip.Severity
@@ -66,13 +65,6 @@ modifyLinesLogged :: (Integer -> Integer) -> IO ()
 modifyLinesLogged f = do
     LoggingStateInternal cfg env counter <- takeMVar makeLSI
     putMVar makeLSI $ LoggingStateInternal cfg env $ f counter
-
-getLogSafety :: IO (Maybe LogSafety)
-getLogSafety = do
-    maybeCfg <- getConfig
-    case maybeCfg of
-        Nothing  -> return Nothing
-        Just _lc -> return $ _lc ^. lcLogSafety
 
 updateConfig :: LoggerConfig -> IO ()
 updateConfig lc = modifyMVar_ makeLSI $ \LoggingStateInternal{..} -> do

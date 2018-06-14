@@ -161,8 +161,7 @@ setupLogging lc = do
         meta :: LoggerConfig -> IO [(T.Text, K.Scribe)]
         meta _lc = do
             -- setup scribes according to configuration
-            let --minSev = _lc ^. lcLoggerTree ^. ltMinSeverity
-                lhs = _lc ^. lcLoggerTree ^. ltHandlers ^.. each
+            let lhs = _lc ^. lcLoggerTree ^. ltHandlers ^.. each
                 basepath = _lc ^. lcBasePath
             forM lhs (\lh -> case (lh ^. lhBackend) of
                     FileJsonBE -> do  -- TODO
@@ -221,8 +220,6 @@ loadLogConfig pre cfg = do
               Nothing -> return (mempty :: LoggerConfig)
               Just fp -> parseLoggerConfig fp
     setLogPrefix pre lc0 >>= setupLogging
-
-
 
 -- | set base path of logging in @LoggerConfig@
 setLogBasePath :: FilePath -> IO ()
