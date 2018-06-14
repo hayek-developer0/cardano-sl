@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds                 #-}
+-- {-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GADTs                     #-}
 {-# LANGUAGE KindSignatures            #-}
@@ -56,6 +57,7 @@ module Pos.Util.Log.LogSafe
        , deriveSafeBuildable
        ) where
 
+-- import           GHC.Generics
 import           Universum
 
 import           Control.Monad.Trans (MonadTrans)
@@ -67,8 +69,9 @@ import           Data.Text.Lazy.Builder (Builder)
 import           Formatting (bprint, build, fconst, later, mapf, (%))
 import           Formatting.Internal (Format (..))
 import qualified Language.Haskell.TH as TH
-import           Pos.Util.Log (CanLog (..), HasLoggerName (..), LogContext, Severity (..),
-                               WithLogger, logMessage)
+import           Pos.Util.Log (CanLog (..), HasLoggerName (..), LogContext, LogSafety (..),
+                               Severity (..), WithLogger, logMessage)
+
 
 -- import           Pos.Binary.Core ()
 import qualified Katip as K
@@ -85,15 +88,6 @@ newtype SelectiveLogWrapped s m a = SelectiveLogWrapped
 instance MonadTrans (SelectiveLogWrapped s) where
     lift = SelectiveLogWrapped
 
-data LogPrivacy where
-    -- | Only to public logs.
-    Public  :: LogPrivacy
-    -- | Only to private logs.
-    -- Private :: LogPrivacy
-    -- -- | To public and private logs.
-    -- Both    :: LogPrivacy
-
-
 -- TODO
 -- type LogHandlerTag = Text
 -- | Tag identifying handlers.
@@ -103,13 +97,13 @@ data LogPrivacy where
 --     deriving (Show, Eq)
 
 -- | Whether to log to given log handler.
-type SelectionMode = LogPrivacy -> Bool
+type SelectionMode = LogSafety -> Bool
 
 selectPublicLogs :: SelectionMode
-selectPublicLogs = const True
--- selectPublicLogs = \case
---     Public -> True
---     _ -> False
+-- selectPublicLogs = const False
+selectPublicLogs = \case
+    Public -> True
+    _ -> False
 
 selectSecretLogs :: SelectionMode
 selectSecretLogs = not . selectPublicLogs

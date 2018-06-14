@@ -167,6 +167,7 @@ test-suite test
                      , serokell-util >= 0.1.3.4
                      , stm
                      , text
+                     , text-format
                      , time
                      , time-units
                      , universum >= 0.1.11

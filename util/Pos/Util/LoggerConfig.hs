@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -6,12 +7,14 @@ module Pos.Util.LoggerConfig
        , RotationParameters (..)
        , LogHandler (..)
        , LoggerTree (..)
+       , LogSafety (..)
        , BackendKind (..)
        , defaultTestConfiguration
        -- * access
        , lcLoggerTree
        , lcRotation
        , lcBasePath
+       , lcLogSafety
        , ltHandlers
        , ltMinSeverity
        , rpKeepFiles
@@ -119,12 +122,23 @@ instance Monoid LoggerTree where
 
 makeLenses ''LoggerTree
 
+data LogSafety where
+    -- | Log only insensitive data.
+    Public  :: LogSafety
+    -- | Log sensitive and insensitive data.
+    Private :: LogSafety
+        deriving (Generic,Show)
+
 -- | @'LoggerConfig'@ is the top level configuration datatype
 data LoggerConfig = LoggerConfig
     { _lcRotation   :: !(Maybe RotationParameters)
     , _lcLoggerTree :: !LoggerTree
     , _lcBasePath   :: !(Maybe FilePath)
+    , _lcLogSafety  :: !(Maybe LogSafety)
     } deriving (Generic, Show)
+
+deriving instance ToJSON LogSafety
+deriving instance FromJSON LogSafety
 
 instance ToJSON LoggerConfig
 instance FromJSON LoggerConfig where
@@ -132,8 +146,8 @@ instance FromJSON LoggerConfig where
         _lcRotation <- o .:? "rotation"
         _lcLoggerTree <- o .: "loggerTree"
         _lcBasePath <- o .:? "logdir"
+        _lcLogSafety <- o .:? "logsafety"
         return LoggerConfig{..}
-
 
 instance Semigroup LoggerConfig
 instance Monoid LoggerConfig where
@@ -142,6 +156,7 @@ instance Monoid LoggerConfig where
                                             _rpKeepFiles = 10 }
                      , _lcLoggerTree = mempty
                      , _lcBasePath = Nothing
+                     , _lcLogSafety = Just Public
                      }
         -- ^ default value
     mappend = (<>)
@@ -183,6 +198,7 @@ defaultTestConfiguration minSeverity =
                 _lhFpath = Nothing,
                 _lhMinSeverity = Just minSeverity } ]
           }
+        _lcLogSafety = Just Public
     in
     LoggerConfig{..}
 

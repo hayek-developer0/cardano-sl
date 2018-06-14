@@ -7,6 +7,9 @@ import           Universum hiding (replicate)
 import           Control.Concurrent (threadDelay)
 
 import           Data.Text (replicate)
+import           Data.Text.Buildable (build)
+import           Data.Text.Lazy (toStrict)
+import           Data.Text.Lazy.Builder (toLazyText)
 import           Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import           Data.Time.Units (Microsecond, fromMicroseconds)
 import           Test.Hspec (Spec, describe, it)
@@ -16,6 +19,8 @@ import           Test.QuickCheck.Monadic (assert, monadicIO, run)
 
 import           Pos.Util.Log
 import           Pos.Util.Log.Internal (getLinesLogged)
+import           Pos.Util.Log.LogSafe (SecureLog (..), logDebugS, logErrorS, logInfoS, logNoticeS,
+                                       logWarningS)
 import           Pos.Util.Log.Severity (Severity (..))
 import           Pos.Util.LoggerConfig (defaultTestConfiguration)
 
@@ -77,10 +82,46 @@ run_logging sev n n0 n1= do
         return (diffTime, linesLogged)
         where msg :: Text
               msg = replicate n "abcdefghijklmnopqrstuvwxyz"
+----
+prop_sevS :: Property
+prop_sevS =
+    monadicIO $ do
+        let n0 = 200
+            n1 = 1
+        (_, linesLogged) <- run (run_loggingS Warning 10 n0 n1)
+        -- multiply by 2 because Debug, Info and Notice messages must not be logged
+        assert (linesLogged == n0 * n1 * 2)
 
+run_loggingS :: Severity -> Int -> Integer -> Integer-> IO (Microsecond, Integer)
+run_loggingS sev n n0 n1= do
+        startTime <- getPOSIXTime
+{- -}
+        setupLogging $ defaultTestConfiguration sev
+        forM_ [1..n0] $ \_ ->
+            usingLoggerName "test_log" $
+                forM_ [1..n1] $ \_ -> do
+                    logDebugS   $ toStrict $ toLazyText $ build $ SecureLog msg
+                    logInfoS    $ toStrict $ toLazyText $ build $ SecureLog msg
+                    logNoticeS  $ toStrict $ toLazyText $ build $ SecureLog msg
+                    logWarningS $ toStrict $ toLazyText $ build $ SecureLog msg
+                    logErrorS   $ toStrict $ toLazyText $ build $ SecureLog msg
+
+{- -}
+        endTime <- getPOSIXTime
+        threadDelay 0500000
+        diffTime <- return $ nominalDiffTimeToMicroseconds (endTime - startTime)
+        putStrLn $ "  time for " ++ (show (n0*n1)) ++ " iterations: " ++ (show diffTime)
+        linesLogged <- getLinesLogged
+        putStrLn $ "  lines logged :" ++ (show linesLogged)
+        return (diffTime, linesLogged)
+        where msg :: Text
+              msg = replicate n "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+----
 spec :: Spec
 spec = describe "Log" $ do
     modifyMaxSuccess (const 2) $ modifyMaxSize (const 2) $ it "measure time for logging small messages" $ property prop_small
     modifyMaxSuccess (const 2) $ modifyMaxSize (const 2) $ it "measure time for logging LARGE messages" $ property prop_large
     modifyMaxSuccess (const 2) $ modifyMaxSize (const 2) $ it "lines counted as logged must be equal to how many was itended to be written" $ property prop_lines
     modifyMaxSuccess (const 2) $ modifyMaxSize (const 2) $ it "Debug, Info and Notice messages must not be logged" $ property prop_sev
+    modifyMaxSuccess (const 2) $ modifyMaxSize (const 2) $ it "Debug, Info and Notice messages must not be logged for safe version also" $ property prop_sevS

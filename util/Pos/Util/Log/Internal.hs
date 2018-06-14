@@ -4,8 +4,9 @@ module Pos.Util.Log.Internal
        , sev2klog
        , updateConfig
        , getConfig
-       , getLogEnv
        , getLinesLogged
+       , getLogEnv
+       , getLogSafety
        , modifyLinesLogged
        ) where
 
@@ -18,7 +19,7 @@ import           Universum hiding (newMVar)
 import qualified Katip as K
 
 import           Pos.Util.Log.Severity
-import           Pos.Util.LoggerConfig (LoggerConfig)
+import           Pos.Util.LoggerConfig (LogSafety (..), LoggerConfig (..), lcLogSafety)
 
 
 -- | translate Severity to Katip.Severity
@@ -65,6 +66,13 @@ modifyLinesLogged :: (Integer -> Integer) -> IO ()
 modifyLinesLogged f = do
     LoggingStateInternal cfg env counter <- takeMVar makeLSI
     putMVar makeLSI $ LoggingStateInternal cfg env $ f counter
+
+getLogSafety :: IO (Maybe LogSafety)
+getLogSafety = do
+    maybeCfg <- getConfig
+    case maybeCfg of
+        Nothing  -> return Nothing
+        Just _lc -> return $ _lc ^. lcLogSafety
 
 updateConfig :: LoggerConfig -> IO ()
 updateConfig lc = modifyMVar_ makeLSI $ \LoggingStateInternal{..} -> do

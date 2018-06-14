@@ -1,16 +1,17 @@
 -- {-# LANGUAGE DefaultSignatures #-}
 
 module Pos.Util.Log
-       ( Severity(..)
+       ( Severity (..)
        , LogContext
        , LogContextT
        ---
-       , CanLog(..)
-       , HasLoggerName(..)
+       , CanLog (..)
+       , HasLoggerName (..)
        , WithLogger
-       , LoggerNameBox(..)
+       , LoggerNameBox (..)
        ---
-       , LoggerConfig(..)
+       , LoggerConfig (..)
+       , LogSafety (..)
        , loadLogConfig
        , parseLoggerConfig
        , retrieveLogFiles
@@ -66,13 +67,6 @@ class (MonadIO m, LogContext m) => CanLog m where
 
 -- class (MonadIO m, LogContext m) => CanLog m where
 --     dispatchMessage :: LoggerName -> Severity -> Text -> m ()
-
---     default dispatchMessage :: (t n ~ m)
---                             => LoggerName
---                             -> Severity
---                             -> Text
---                             -> m ()
---     dispatchMessage name sev t = K.logItemM Nothing (Internal.sev2klog sev) $ K.logStr t
 
 class (MonadIO m, LogContext m) => HasLoggerName m where
     askLoggerName :: m LoggerName
