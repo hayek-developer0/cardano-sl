@@ -14633,6 +14633,7 @@ license = stdenv.lib.licenses.bsd3;
 , cardano-sl-txp
 , cardano-sl-txp-test
 , cardano-sl-update
+, cardano-sl-update-test
 , cardano-sl-util
 , cardano-sl-util-test
 , cborg
@@ -14829,6 +14830,7 @@ cardano-sl-ssc
 cardano-sl-txp
 cardano-sl-txp-test
 cardano-sl-update
+cardano-sl-update-test
 cardano-sl-util
 cardano-sl-util-test
 cborg
@@ -15422,7 +15424,7 @@ license = stdenv.lib.licenses.mit;
 , cardano-sl-ssc
 , cardano-sl-txp
 , cardano-sl-txp-test
-, cardano-sl-update
+, cardano-sl-update-test
 , cardano-sl-util
 , cardano-sl-util-test
 , formatting
@@ -15462,7 +15464,7 @@ cardano-sl-networking
 cardano-sl-ssc
 cardano-sl-txp
 cardano-sl-txp-test
-cardano-sl-update
+cardano-sl-update-test
 cardano-sl-util
 cardano-sl-util-test
 formatting
@@ -17410,15 +17412,12 @@ license = stdenv.lib.licenses.mit;
 , Cabal
 , cardano-sl-binary
 , cardano-sl-core
-, cardano-sl-core-test
 , cardano-sl-crypto
-, cardano-sl-crypto-test
 , cardano-sl-db
 , cardano-sl-infra
 , cardano-sl-lrc
 , cardano-sl-networking
 , cardano-sl-util
-, cardano-sl-util-test
 , conduit
 , containers
 , cpphs
@@ -17427,7 +17426,6 @@ license = stdenv.lib.licenses.mit;
 , ether
 , exceptions
 , formatting
-, generic-arbitrary
 , hashable
 , http-client
 , http-client-tls
@@ -17436,7 +17434,6 @@ license = stdenv.lib.licenses.mit;
 , log-warper
 , memory
 , mtl
-, QuickCheck
 , reflection
 , resourcet
 , rocksdb-haskell-ng
@@ -17469,15 +17466,12 @@ bytestring
 Cabal
 cardano-sl-binary
 cardano-sl-core
-cardano-sl-core-test
 cardano-sl-crypto
-cardano-sl-crypto-test
 cardano-sl-db
 cardano-sl-infra
 cardano-sl-lrc
 cardano-sl-networking
 cardano-sl-util
-cardano-sl-util-test
 conduit
 containers
 data-default
@@ -17485,7 +17479,6 @@ directory
 ether
 exceptions
 formatting
-generic-arbitrary
 hashable
 http-client
 http-client-tls
@@ -17494,7 +17487,6 @@ lens
 log-warper
 memory
 mtl
-QuickCheck
 reflection
 resourcet
 rocksdb-haskell-ng
@@ -17515,6 +17507,51 @@ cpphs
 ];
 doHaddock = false;
 description = "Cardano SL - update";
+license = stdenv.lib.licenses.mit;
+
+}) {};
+"cardano-sl-update-test" = callPackage
+({
+  mkDerivation
+, base
+, cardano-sl-binary
+, cardano-sl-core
+, cardano-sl-core-test
+, cardano-sl-crypto
+, cardano-sl-crypto-test
+, cardano-sl-infra
+, cardano-sl-update
+, cardano-sl-util-test
+, containers
+, generic-arbitrary
+, QuickCheck
+, stdenv
+, universum
+, unordered-containers
+}:
+mkDerivation {
+
+pname = "cardano-sl-update-test";
+version = "1.3.0";
+src = ./../update/test;
+libraryHaskellDepends = [
+base
+cardano-sl-binary
+cardano-sl-core
+cardano-sl-core-test
+cardano-sl-crypto
+cardano-sl-crypto-test
+cardano-sl-infra
+cardano-sl-update
+cardano-sl-util-test
+containers
+generic-arbitrary
+QuickCheck
+universum
+unordered-containers
+];
+doHaddock = false;
+description = "Cardano SL - arbitrary instances for cardano-sl-update";
 license = stdenv.lib.licenses.mit;
 
 }) {};
