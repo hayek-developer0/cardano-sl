@@ -9,6 +9,7 @@ module Pos.Util.LoggerConfig
        , LoggerTree (..)
        , LogSafety (..)
        , BackendKind (..)
+       , defaultInteractiveConfiguration
        , defaultTestConfiguration
        -- * access
        , lcLoggerTree
@@ -185,6 +186,23 @@ retrieveLogFiles lc =
     where
         lhs = lc ^. lcLoggerTree ^. ltHandlers ^.. each
 
+-- | @LoggerConfig@ used interactively
+-- output to console and minimum Debug severity
+defaultInteractiveConfiguration :: Severity -> LoggerConfig
+defaultInteractiveConfiguration minSeverity =
+    let _lcRotation = Nothing
+        _lcBasePath = Nothing
+        _lcLoggerTree = LoggerTree {
+            _ltMinSeverity = Debug,
+            _ltHandlers = [ LogHandler {
+                _lhBackend = StdoutBE,
+                _lhName = "console",
+                _lhFpath = Nothing,
+                _lhSafety = Just PrivateLog,
+                _lhMinSeverity = Just minSeverity } ]
+          }
+    in
+    LoggerConfig{..}
 
 -- | @LoggerConfig@ used in testing
 -- no output and minimum Debug severity

@@ -15,14 +15,19 @@ import           Data.Time.Units (Microsecond, fromMicroseconds)
 import           Test.Hspec (Spec, describe, it)
 import           Test.Hspec.Core.QuickCheck (modifyMaxSize, modifyMaxSuccess)
 import           Test.QuickCheck (Property, property)
-import           Test.QuickCheck.Monadic (assert, monadicIO, run)
+import           Test.QuickCheck.Monadic (assert, monadic', monadicIO, run)
 
 import           Pos.Util.Log
 import           Pos.Util.Log.Internal (getLinesLogged)
 import           Pos.Util.Log.LogSafe (SecureLog (..), logDebugS, logErrorS, logInfoS, logNoticeS,
                                        logWarningS)
 import           Pos.Util.Log.Severity (Severity (..))
-import           Pos.Util.LoggerConfig (defaultTestConfiguration)
+import           Pos.Util.LoggerConfig (defaultInteractiveConfiguration, defaultTestConfiguration)
+
+import qualified Pos.Util.Log as Log
+import qualified Pos.Util.Trace as Tr
+import qualified Pos.Util.Trace.Klog as K
+import qualified Pos.Util.Trace.Unstructured as Tu
 
 nominalDiffTimeToMicroseconds :: POSIXTime -> Microsecond
 nominalDiffTimeToMicroseconds = fromMicroseconds . round . (* 1000000)
@@ -117,7 +122,17 @@ run_loggingS sev n n0 n1= do
         where msg :: Text
               msg = replicate n "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-----
+prop_sevK :: Property
+prop_sevK =
+    monadicIO $ do
+        let n0 = 200
+            n1 = 1
+        setupLogging (defaultInteractiveConfiguration Debug)
+        Tr.traceWith K.klogTrace K.LogNamed { K.lnName = toText "NOTused"
+                                            , K.lnItem = Tu.LogItem Tu.Both Warning (toText "haha")
+                                            }
+        assert (200 == n0 * n1)
+
 spec :: Spec
 spec = describe "Log" $ do
     modifyMaxSuccess (const 2) $ modifyMaxSize (const 2) $ it "measure time for logging small messages" $ property prop_small
@@ -125,3 +140,4 @@ spec = describe "Log" $ do
     modifyMaxSuccess (const 2) $ modifyMaxSize (const 2) $ it "lines counted as logged must be equal to how many was itended to be written" $ property prop_lines
     modifyMaxSuccess (const 2) $ modifyMaxSize (const 2) $ it "Debug, Info and Notice messages must not be logged" $ property prop_sev
     modifyMaxSuccess (const 2) $ modifyMaxSize (const 2) $ it "Debug, Info and Notice messages must not be logged for safe version also" $ property prop_sevS
+    modifyMaxSuccess (const 2) $ modifyMaxSize (const 2) $ it "Dummy test to see if Trace Katip are combined well." $ property prop_sevK

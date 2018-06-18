@@ -52,12 +52,12 @@ named :: Trace m (LogNamed i) -> Trace m i
 named = contramap (LogNamed mempty)
 
 -- FIXME needs exporting of 'logMCond' and 'LogHandlerTag' from
--- Pos.Util.Log or rewriting wlogTrace according to Katip API.
+-- Pos.Util.Log or rewriting klogTrace according to Katip API.
 -- This removal breaks only 'lib/src/Pos/Launcher/Runner.hs'.
 -- | A general log-warper-backed 'Trace', which allows for logging to public,
 -- private, or both, and the choice of a 'LoggerName'.
 -- NB: log-warper uses global shared mutable state. You have to initialize it
--- or else 'wlogTrace' won't do anything.
+-- or else 'klogTrace' won't do anything.
 klogTrace :: LogContext m => Trace m (LogNamed LogItem)
 klogTrace = Trace $ Op $ \namedLogItem ->
     let privacy = liPrivacy (lnItem namedLogItem)
@@ -65,9 +65,9 @@ klogTrace = Trace $ Op $ \namedLogItem ->
         severity = liSeverity (lnItem namedLogItem)
         message = liMessage (lnItem namedLogItem)
      in case privacy of
-            Private -> logMCond {-loggerName-} severity message selectPrivateLogs
-            Public  -> logMCond {-loggerName-} severity message selectPublicLogs
-            Both    -> logMCond {-loggerName-} severity message selectBoth
+            Private -> logMCond severity message selectPrivateLogs
+            Public  -> logMCond severity message selectPublicLogs
+            Both    -> logMCond severity message selectBoth
   where
     selectPrivateLogs :: LogSafety -> Bool
     selectPrivateLogs = not . selectPublicLogs
