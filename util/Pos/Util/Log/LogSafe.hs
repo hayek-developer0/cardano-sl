@@ -62,18 +62,25 @@ module Pos.Util.Log.LogSafe
 
 import           Universum
 
+import           Control.Concurrent (myThreadId)
+import           Control.Lens (each)
 import           Control.Monad.Trans (MonadTrans)
+import           Data.Map.Strict (lookup)
 import           Data.Reflection (Reifies (..), reify)
 import qualified Data.Text.Buildable
 import           Data.Text.Lazy.Builder (Builder)
 import           Formatting (bprint, build, fconst, later, mapf, (%))
 import           Formatting.Internal (Format (..))
 import qualified Language.Haskell.TH as TH
-import           Pos.Util.Log (CanLog (..), HasLoggerName (..), LogContext, LogSafety (..),
-                               Severity (..), WithLogger)
-import           Pos.Util.Log.Internal (getLogEnv)
+
+import           Pos.Util.Log (CanLog (..), HasLoggerName (..), LogContext, Severity (..),
+                               WithLogger)
+import           Pos.Util.Log.Internal (getConfig, getLogEnv, sev2klog)
+import           Pos.Util.LoggerConfig (LogHandler (..), LogSecurityLevel (..), lcLoggerTree,
+                                        lhName, ltHandlers)
 
 import qualified Katip as K
+import qualified Katip.Core as KC
 
 ----------------------------------------------------------------------------
 -- Logging
@@ -87,68 +94,66 @@ newtype SelectiveLogWrapped s m a = SelectiveLogWrapped
 instance MonadTrans (SelectiveLogWrapped s) where
     lift = SelectiveLogWrapped
 
--- TODO
--- type LogHandlerTag = Text
--- | Tag identifying handlers.
--- data LogHandlerTag
---     = HandlerFilelike FilePath
---     | HandlerOther String
---     deriving (Show, Eq)
-
 -- | Whether to log to given log handler.
-type SelectionMode = LogSafety -> Bool
--- type SelectionMode' = Text -> Bool
+type SelectionMode = LogSecurityLevel -> Bool
 
 selectPublicLogs :: SelectionMode
 selectPublicLogs = \case
-    PublicLog -> True
-    _ -> False
+    PublicLogLevel -> True
+    _              -> False
 
 selectSecretLogs :: SelectionMode
 selectSecretLogs = not . selectPublicLogs
 
 logMCond :: (LogContext m) => Severity -> Text -> SelectionMode -> m ()
-logMCond _ _ _ = return ()--FiXME to use logItemS
--- logMCond sev msg cond = --FiXME to use logItemS
-                        -- when (cond Public) $ logMessage sev msg
--- liket this
--- -- | log a Text with severity
--- logMessage :: (LogContext m {-, HasCallStack -}) => Severity -> Text -> m ()
--- logMessage sev msg = logMessage' (Internal.sev2klog sev) $ K.logStr msg
--- logMessage' :: (LogContext m {-, HasCallStack -}) => K.Severity -> K.LogStr -> m ()
--- logMessage' s m = K.logItemM Nothing s m
-
+logMCond sev msg cond = do
+    ctx <- K.getKatipContext
+    ns  <- K.getKatipNamespace
+    logItemS ctx ns Nothing (sev2klog sev) cond $ K.logStr msg
 
 logItemS
-    -- :: (Applicative m, K.LogItem a, K.Katip m)
-    :: K.Katip m
+    :: (K.LogItem a, K.Katip m)
     => a
     -> K.Namespace
     -> Maybe TH.Loc
-    -> Severity
+    -> K.Severity
     -> SelectionMode
     -> K.LogStr
     -> m ()
--- logItemS a ns loc sev cond msg = do
-logItemS _ _ _ _ _ _ = do
-    aa <- liftIO getLogEnv
-    case aa of
-        Nothing -> error "  "
-        _       -> return ()
-    -- liftIO $ do
-    --   item <- Item
-    --     <$> pure _logEnvApp
-    --     <*> pure _logEnvEnv
-    --     <*> pure sev
-    --     <*> (mkThreadIdText <$> myThreadId)
-    --     <*> pure _logEnvHost
-    --     <*> pure _logEnvPid
-    --     <*> pure a
-    --     <*> pure msg
-    --     <*> _logEnvTimer
-    --     <*> pure (_logEnvApp <> ns)
-    --     <*> pure loc
-    --   forM_ (filter cond (elems _logEnvScribes)) $ \ ScribeHandle {..} -> atomically (tryWriteTBQueue shChan (NewItem item))
+logItemS a ns loc sev cond msg = do
+    mayle <- liftIO getLogEnv
+    case mayle of
+        Nothing              -> error "logging not yet initialized. Abort."
+        Just le@K.LogEnv{..} -> do
+            maycfg <- liftIO getConfig
+            let cfg = case maycfg of
+                    Nothing -> error "No Configuration for logging found. Abort."
+                    Just c  -> c
+            liftIO $ do
+                item <- K.Item
+                    <$> pure (K._logEnvApp le)
+                    <*> pure (K._logEnvEnv le)
+                    <*> pure sev
+                    <*> (KC.mkThreadIdText <$> myThreadId)
+                    <*> pure (K._logEnvHost le)
+                    <*> pure (K._logEnvPid le)
+                    <*> pure a
+                    <*> pure msg
+                    <*> (K._logEnvTimer le)
+                    <*> pure ((K._logEnvApp le) <> ns)
+                    <*> pure loc
+                -- forM_ (filter cond (elems (K._logEnvScribes le))) $ \ KC.ScribeHandle {..} -> atomically (KC.tryWriteTBQueue KC.shChan (NewItem item))
+                let lhs = cfg ^. lcLoggerTree ^. ltHandlers ^.. each
+                forM_ (filterWithSafety cond lhs) (\ lh -> do
+                    case lookup (lh ^. lhName) (K._logEnvScribes le) of
+                        Nothing -> error ("Not found Scribe with name: " <> lh ^. lhName)
+                        Just scribeH -> atomically
+                            (KC.tryWriteTBQueue (KC.shChan scribeH) (KC.NewItem item)))
+            where
+              filterWithSafety :: SelectionMode -> [LogHandler] -> [LogHandler]
+              filterWithSafety condition = filter (\lh -> case _lhSafety lh of
+                  Nothing -> False
+                  Just s  -> condition s)
 
 instance (WithLogger m, Reifies s SelectionMode) =>
          CanLog (SelectiveLogWrapped s m) where
@@ -190,8 +195,7 @@ logNoticeS  = logMessageS Notice
 logWarningS = logMessageS Warning
 logErrorS   = logMessageS Error
 
--- | Same as 'logMesssage', but log to secret logs, put only insecure
--- version to memmode (to terminal).
+-- | Same as 'logMesssage', but log to secret logs.
 logMessageS
     :: (HasLoggerName m, CanLog m)
     => Severity
@@ -237,11 +241,6 @@ logMessageS severity t =
 newtype SecureLog a = SecureLog
     { getSecureLog :: a
     } deriving (Eq, Ord)
-
-data LogSecurityLevel
-    = SecretLogLevel
-    | PublicLogLevel
-    deriving (Eq)
 
 secure :: LogSecurityLevel
 secure = PublicLogLevel

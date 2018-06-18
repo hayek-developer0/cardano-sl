@@ -11,7 +11,6 @@ module Pos.Util.Log
        , LoggerNameBox (..)
        ---
        , LoggerConfig (..)
-       , LogSafety (..)
        , loadLogConfig
        , parseLoggerConfig
        , retrieveLogFiles

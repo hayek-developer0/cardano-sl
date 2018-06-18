@@ -7,8 +7,8 @@ module Pos.Util.LoggerConfig
        , RotationParameters (..)
        , LogHandler (..)
        , LoggerTree (..)
-       , LogSafety (..)
        , BackendKind (..)
+       , LogSecurityLevel (..)
        , defaultInteractiveConfiguration
        , defaultTestConfiguration
        -- * access
@@ -67,13 +67,13 @@ instance FromJSON RotationParameters where
 
 makeLenses ''RotationParameters
 
-data LogSafety where
-    PublicLog  :: LogSafety
-    PrivateLog :: LogSafety
-        deriving (Generic,Show)
+data LogSecurityLevel
+    = SecretLogLevel
+    | PublicLogLevel
+    deriving (Eq, Show, Generic)
 
-deriving instance ToJSON LogSafety
-deriving instance FromJSON LogSafety
+deriving instance ToJSON LogSecurityLevel
+deriving instance FromJSON LogSecurityLevel
 
 -- | @'LogHandler'@ describes the output handler (file, stdout, ..)
 --
@@ -82,7 +82,7 @@ data LogHandler = LogHandler
       -- ^ name of the handler
     , _lhFpath       :: !(Maybe FilePath)
       -- ^ file path
-    , _lhSafety      :: !(Maybe LogSafety)
+    , _lhSafety      :: !(Maybe LogSecurityLevel)
       -- ^ file will be public or private
     , _lhBackend     :: !BackendKind
       -- ^ describes the backend (scribe for katip) to be loaded
@@ -95,7 +95,7 @@ instance FromJSON LogHandler where
     parseJSON = withObject "log handler" $ \o -> do
         (_lhName :: T.Text) <- o .: "name"
         (_lhFpath :: Maybe FilePath) <- fmap normalise <$> o .:? "filepath"
-        (_lhSafety :: Maybe LogSafety) <- o .:? "logsafety"
+        (_lhSafety :: Maybe LogSecurityLevel) <- o .:? "logsafety"
         (_lhBackend :: BackendKind ) <- o .: "backend"
         (_lhMinSeverity :: Maybe Severity) <- o .:? "severity"
         pure LogHandler{..}
@@ -116,11 +116,16 @@ instance FromJSON LoggerTree where
         (manyFiles :: [FilePath]) <- map normalise <$> (o .:? "files" .!= [])
         handlers <- o .:? "handlers" .!= []
         let fileHandlers =
-              map (\fp -> LogHandler { _lhName=T.pack fp, _lhFpath=Just fp
-                                     , _lhBackend=FileTextBE, _lhMinSeverity=Just Debug
-                                     --FIXME to have a condition that chooses if a file is
-                                     -- public or private
-                                     , _lhSafety=Just PublicLog }) $
+              map (\fp ->
+                let name = T.pack fp in
+                LogHandler { _lhName=name
+                           , _lhFpath=Just fp
+                           , _lhBackend=FileTextBE
+                           , _lhMinSeverity=Just Debug
+                           , _lhSafety=case ".pub" `T.isSuffixOf` name of
+                                True -> Just PublicLogLevel
+                                _    -> Just SecretLogLevel
+                           }) $
                 maybeToList singleFile ++ manyFiles
         let _ltHandlers = fileHandlers <> handlers
         (_ltMinSeverity :: Severity) <- o .: "severity" .!= Debug
@@ -130,8 +135,9 @@ instance Semigroup LoggerTree
 instance Monoid LoggerTree where
     mempty = LoggerTree { _ltMinSeverity = Debug
                    , _ltHandlers = [LogHandler { _lhName="node", _lhFpath=Just "node.log"
-                                               , _lhBackend=FileTextBE, _lhMinSeverity=Just Debug
-                                               , _lhSafety=Just PublicLog}]
+                                               , _lhBackend=FileTextBE
+                                               , _lhMinSeverity=Just Debug
+                                               , _lhSafety=Just PublicLogLevel}]
                    }
         -- ^ default value
     mappend = (<>)
@@ -198,7 +204,7 @@ defaultInteractiveConfiguration minSeverity =
                 _lhBackend = StdoutBE,
                 _lhName = "console",
                 _lhFpath = Nothing,
-                _lhSafety = Just PrivateLog,
+                _lhSafety = Just SecretLogLevel,
                 _lhMinSeverity = Just minSeverity } ]
           }
     in
@@ -216,7 +222,7 @@ defaultTestConfiguration minSeverity =
                 _lhBackend = DevNullBE,
                 _lhName = "devnull",
                 _lhFpath = Nothing,
-                _lhSafety = Just PrivateLog,
+                _lhSafety = Just SecretLogLevel,
                 _lhMinSeverity = Just minSeverity } ]
           }
     in
