@@ -76,3 +76,22 @@ klogTrace = Trace $ Op $ \namedLogItem ->
     selectPublicLogs PrivateLog = False
     selectBoth :: LogSafety -> Bool
     selectBoth = const True
+
+-- klogTraceIO :: Trace (LogContextT IO) (LogNamed LogItem)
+-- klogTraceIO = Trace $ Op $ \namedLogItem ->
+--     let privacy = liPrivacy (lnItem namedLogItem)
+--         -- loggerName = lnName namedLogItem
+--         severity = liSeverity (lnItem namedLogItem)
+--         message = liMessage (lnItem namedLogItem)
+--      in case privacy of
+--             Private -> logMCond severity message selectPrivateLogs
+--             Public  -> logMCond severity message selectPublicLogs
+--             Both    -> logMCond severity message selectBoth
+--   where
+--     selectPrivateLogs :: LogSafety -> Bool
+--     selectPrivateLogs = not . selectPublicLogs
+--     selectPublicLogs :: LogSafety -> Bool
+--     selectPublicLogs PublicLog  = True
+--     selectPublicLogs PrivateLog = False
+--     selectBoth :: LogSafety -> Bool
+--     selectBoth = const True
