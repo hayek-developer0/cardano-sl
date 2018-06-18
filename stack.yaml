@@ -226,6 +226,7 @@ ghc-options:
   cardano-sl-block-bench: -Werror -fwarn-redundant-constraints
   cardano-sl-client:      -Werror -fwarn-redundant-constraints
   cardano-sl-core:        -Werror -fwarn-redundant-constraints
+  cardano-sl-crypto:      -Werror -fwarn-redundant-constraints
   cardano-sl-db:          -Werror -fwarn-redundant-constraints
   cardano-sl-delegation:  -Werror -fwarn-redundant-constraints
   cardano-sl-explorer:    -Werror -fwarn-redundant-constraints
